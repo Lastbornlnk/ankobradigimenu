@@ -431,37 +431,44 @@
             }
         }
 
-        window.addEventListener('DOMContentLoaded', async () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const tableNum = urlParams.get('table');
-            if (tableNum) currentTable = tableNum;
+       window.addEventListener('DOMContentLoaded', async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tableNum = urlParams.get('table');
+    if (tableNum) currentTable = tableNum;
 
-            try {
-                const response = await fetch('menu-data.json?' + new Date().getTime());
-                if (response.ok) {
-                    appData = await response.json();
-                }
-            } catch (err) {}
+    // 1. Instantly check if we have saved data locally or fall back to default
+    if (localStorage.getItem('ankobra_live_data')) {
+        try {
+            appData = JSON.parse(localStorage.getItem('ankobra_live_data'));
+        } catch(e) {}
+    }
 
-            if (localStorage.getItem('ankobra_live_data')) {
-                try {
-                    appData = JSON.parse(localStorage.getItem('ankobra_live_data'));
-                } catch(e) {}
-            }
+    // 2. RENDER IMMEDIATELY so the guest never sees a blank page
+    document.getElementById('top-table-badge').innerText = `Table ${currentTable}`;
+    document.getElementById('top-bar-restaurant-name').innerText = appData.settings.restaurantName;
+    renderCustomerHeader();
+    startSlideshow();
+    renderCategoryTabs();
+    renderCustomerMenu();
 
-            document.getElementById('top-table-badge').innerText = `Table ${currentTable}`;
-            document.getElementById('top-bar-restaurant-name').innerText = appData.settings.restaurantName;
-
+    // 3. Fetch menu-data.json silently in the background to grab any server updates
+    try {
+        const response = await fetch('menu-data.json?' + new Date().getTime());
+        if (response.ok) {
+            const serverData = await response.json();
+            appData = serverData;
+            // Update local storage so future loads are also instant
+            localStorage.setItem('ankobra_live_data', JSON.stringify(appData));
+            
+            // Re-render UI with latest server data
             renderCustomerHeader();
-            startSlideshow();
             renderCategoryTabs();
             renderCustomerMenu();
-        });
-
-        function saveToLocalStorage() {
-            localStorage.setItem('ankobra_live_data', JSON.stringify(appData));
         }
-
+    } catch (err) {
+        console.log("Running on cached/local storage data.");
+    }
+});
         function renderCustomerHeader() {
             document.getElementById('header-logo').src = appData.settings.logo;
             document.getElementById('header-title').innerText = appData.settings.restaurantName;
