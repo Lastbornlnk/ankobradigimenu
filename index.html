@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ankobra Beach | Digital Menu & Admin</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- QRCode Generator Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Supabase JS Client CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        cream: { DEFAULT: '#FDFBF7', dark: '#F4EFE6', muted: '#EAE2D0' },
+                        onyx: { DEFAULT: '#111111', light: '#262626', muted: '#666666' },
+                        gold: { DEFAULT: '#C5A880', dark: '#A3855E', light: '#DFCFB7' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @media print {
+            body * { visibility: hidden; }
+            #printable-qr-container, #printable-qr-container * { visibility: visible; }
+            #printable-qr-container { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body class="bg-cream text-onyx antialiased min-h-screen flex flex-col justify-between selection:bg-gold selection:text-white">
+
+    <!-- Top Navigation Bar (Clean Guest View) -->
+    <div class="bg-onyx text-cream px-4 py-2.5 text-xs flex justify-between items-center sticky top-0 z-50 shadow-md">
+        <div class="flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span id="top-bar-restaurant-name" class="font-medium tracking-wide">Ankobra Beach</span>
+        </div>
+        <div class="flex items-center space-x-3">
+            <span id="top-table-badge" class="bg-onyx-light px-2.5 py-1 rounded text-gold font-semibold">Table 1</span>
+        </div>
+    </div>
+
+    <!-- CUSTOMER VIEW -->
+    <div id="customer-view" class="flex-1 flex flex-col">
+        <!-- Header Slideshow Banner -->
+        <header class="relative w-full h-64 sm:h-80 bg-onyx overflow-hidden shadow-inner">
+            <div id="slideshow-container" class="absolute inset-0 w-full h-full"></div>
+            <div class="absolute inset-0 bg-gradient-to-t from-onyx/90 via-onyx/40 to-onyx/20"></div>
+
+            <div class="absolute inset-0 flex flex-col items-center justify-center text-center p-4 text-white z-10">
+                <img id="header-logo" src="images/logo.jpg" alt="Logo" class="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-full border-2 border-gold shadow-lg mb-3 bg-white cursor-pointer active:scale-95 transition-transform" onclick="handleLogoTap()" onerror="this.src='https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=300&q=80'">
+                <h1 id="header-title" class="text-2xl sm:text-3xl font-serif font-bold tracking-wider text-cream">Ankobra Beach</h1>
+                <p id="header-tagline" class="text-xs sm:text-sm text-gold-light mt-1 font-light tracking-wide max-w-md">Where Africa meets the world</p>
+            </div>
+
+            <div id="slideshow-dots" class="absolute bottom-3 left-0 right-0 flex justify-center space-x-2 z-20"></div>
+        </header>
+
+        <!-- Search Bar Row -->
+        <div class="bg-cream-dark border-b border-cream-muted px-4 py-3 sticky top-[37px] z-30 shadow-xs">
+            <div class="max-w-md mx-auto relative">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-onyx-muted pointer-events-none text-sm">🔍</span>
+                <input type="text" id="search-input" placeholder="Search dishes, drinks, cocktails..." class="w-full pl-10 pr-4 py-2 bg-white border border-cream-muted rounded-full text-sm text-onyx placeholder-onyx-muted focus:outline-none focus:ring-2 focus:ring-gold transition-all shadow-inner">
+            </div>
+        </div>
+
+        <!-- Category Horizontal Scroll -->
+        <nav class="bg-cream border-b border-cream-muted px-4 py-2.5 sticky top-[97px] z-30 overflow-x-auto no-scrollbar flex space-x-2 shadow-xs" id="category-tabs-container"></nav>
+
+        <!-- Dietary Filters Horizontal Scroll -->
+        <div class="bg-cream/90 backdrop-blur-xs border-b border-cream-muted px-4 py-2 sticky top-[143px] z-20 overflow-x-auto no-scrollbar flex space-x-2 items-center text-xs">
+            <span class="text-onyx-muted font-medium shrink-0 uppercase tracking-wider text-[10px]">Filter:</span>
+            <button onclick="setDietaryFilter('all', this)" class="diet-btn px-3 py-1 bg-onyx text-cream rounded-md font-medium whitespace-nowrap transition-all shadow-xs cursor-pointer">All Items</button>
+            <button onclick="setDietaryFilter('Vegetarian', this)" class="diet-btn px-3 py-1 bg-cream-dark text-onyx-muted rounded-md font-medium whitespace-nowrap hover:bg-cream-muted transition-all cursor-pointer">🌱 Vegetarian</button>
+            <button onclick="setDietaryFilter('Chef Special', this)" class="diet-btn px-3 py-1 bg-cream-dark text-onyx-muted rounded-md font-medium whitespace-nowrap hover:bg-cream-muted transition-all cursor-pointer">⭐ Signature</button>
+        </div>
+
+        <!-- Menu Items List Container -->
+        <main class="p-4 sm:p-6 max-w-xl mx-auto w-full flex-1 space-y-3.5" id="menu-items-container"></main>
+        
+        <!-- Footer Info -->
+        <footer class="text-center py-8 text-xs text-onyx-muted border-t border-cream-muted mt-12 bg-cream-dark space-y-2">
+            <p id="footer-address" class="font-medium">Ankobra Beach Resort — Where Africa meets the world</p>
+            <p>All Prices In Gh¢ • Powered by Scan-to-View Digital Menu</p>
+        </footer>
+    </div>
+
+    <!-- ITEM DETAILS MODAL -->
+    <div id="item-modal" class="fixed inset-0 bg-onyx/70 backdrop-blur-xs z-50 hidden flex items-end sm:items-center justify-center p-0 sm:p-4 transition-opacity">
+        <div class="bg-cream w-full max-w-lg rounded-t-3xl sm:rounded-2xl overflow-hidden shadow-2xl border border-cream-muted max-h-[90vh] flex flex-col animate-in slide-in-from-bottom duration-200">
+            <div class="relative h-60 sm:h-64 bg-onyx">
+                <img id="modal-img" src="" alt="Dish" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80'">
+                <button onclick="closeItemModal()" class="absolute top-4 right-4 bg-onyx/70 hover:bg-onyx text-white w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shadow-md transition-all cursor-pointer">✕</button>
+                <div id="modal-stock-badge" class="absolute bottom-4 left-4 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-md"></div>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4 flex-1">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <span id="modal-category" class="text-xs font-bold uppercase tracking-widest text-gold-dark"></span>
+                        <h2 id="modal-title" class="text-2xl font-serif font-bold text-onyx mt-0.5"></h2>
+                    </div>
+                    <span id="modal-price" class="text-2xl font-serif font-bold text-gold-dark"></span>
+                </div>
+                <p id="modal-desc" class="text-sm text-onyx-muted leading-relaxed"></p>
+                <div>
+                    <h4 class="text-xs font-bold text-onyx-muted uppercase tracking-wider mb-2">Attributes</h4>
+                    <div id="modal-tags" class="flex flex-wrap gap-1.5"></div>
+                </div>
+            </div>
+            <div class="p-4 bg-cream-dark border-t border-cream-muted">
+                <button onclick="closeItemModal()" class="w-full py-3 bg-onyx hover:bg-onyx-light text-cream rounded-xl font-medium text-sm transition-colors shadow-md cursor-pointer">Close Details</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADMIN LOGIN MODAL -->
+    <div id="admin-login-modal" class="fixed inset-0 bg-onyx/80 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-cream w-full max-w-sm rounded-2xl p-6 shadow-2xl border border-cream-muted space-y-4">
+            <div class="text-center">
+                <div class="text-3xl mb-1">🔐</div>
+                <h3 class="text-xl font-serif font-bold text-onyx">Admin Access</h3>
+                <p class="text-xs text-onyx-muted mt-1">Enter your 4-digit PIN code (Default: 1234)</p>
+            </div>
+            <input type="password" id="admin-pin-input" maxlength="4" placeholder="••••" class="w-full text-center text-2xl tracking-widest py-3 bg-white border border-cream-muted rounded-xl focus:outline-none focus:ring-2 focus:ring-gold">
+            <p id="admin-login-error" class="text-xs text-red-600 text-center hidden font-medium">Incorrect PIN code. Try '1234'.</p>
+            <div class="flex space-x-2 pt-2">
+                <button onclick="closeAdminLogin()" class="flex-1 py-2.5 bg-cream-dark hover:bg-cream-muted text-onyx rounded-xl text-sm font-medium transition-colors cursor-pointer">Cancel</button>
+                <button onclick="verifyAdminPin()" class="flex-1 py-2.5 bg-onyx hover:bg-onyx-light text-cream rounded-xl text-sm font-medium transition-colors cursor-pointer">Login</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADMIN DASHBOARD VIEW -->
+    <div id="admin-dashboard" class="fixed inset-0 bg-cream z-50 hidden flex flex-col overflow-hidden">
+        <header class="bg-onyx text-cream px-6 py-4 flex justify-between items-center shadow-lg shrink-0">
+            <div class="flex items-center space-x-3">
+                <span class="text-xl">⚙️</span>
+                <div>
+                    <h2 class="text-lg font-serif font-bold">Ankobra Beach Admin Dashboard</h2>
+                    <p class="text-xs text-gold-light">Manage live menu items, slideshow images, and table QR codes</p>
+                </div>
+            </div>
+            <button onclick="closeAdminDashboard()" class="bg-gold hover:bg-gold-dark text-onyx font-bold px-4 py-2 rounded-xl text-xs transition-colors shadow-md cursor-pointer">
+                ✕ Exit to Menu
+            </button>
+        </header>
+
+        <!-- Admin Tabs -->
+        <div class="bg-cream-dark border-b border-cream-muted px-6 flex space-x-4 shrink-0 overflow-x-auto no-scrollbar">
+            <button onclick="switchAdminTab('dishes')" id="tab-btn-dishes" class="admin-tab-btn py-3.5 border-b-2 border-onyx text-onyx font-bold text-sm tracking-wide whitespace-nowrap cursor-pointer">🍽️ Menu Items</button>
+            <button onclick="switchAdminTab('categories')" id="tab-btn-categories" class="admin-tab-btn py-3.5 border-b-2 border-transparent text-onyx-muted hover:text-onyx font-medium text-sm tracking-wide whitespace-nowrap cursor-pointer">📂 Categories</button>
+            <button onclick="switchAdminTab('slideshow')" id="tab-btn-slideshow" class="admin-tab-btn py-3.5 border-b-2 border-transparent text-onyx-muted hover:text-onyx font-medium text-sm tracking-wide whitespace-nowrap cursor-pointer">🖼️ Header Slideshow</button>
+            <button onclick="switchAdminTab('qrcodes')" id="tab-btn-qrcodes" class="admin-tab-btn py-3.5 border-b-2 border-transparent text-onyx-muted hover:text-onyx font-medium text-sm tracking-wide whitespace-nowrap cursor-pointer">🖨️ Table QR Codes & PDF</button>
+            <button onclick="switchAdminTab('settings')" id="tab-btn-settings" class="admin-tab-btn py-3.5 border-b-2 border-transparent text-onyx-muted hover:text-onyx font-medium text-sm tracking-wide whitespace-nowrap cursor-pointer">⚙️ Resort Settings</button>
+        </div>
+
+        <!-- Admin Content Area -->
+        <div class="flex-1 overflow-y-auto p-6 max-w-5xl mx-auto w-full">
+            
+            <!-- TAB 1: DISHES -->
+            <div id="admin-tab-dishes" class="admin-tab-content space-y-6">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-2xl border border-cream-muted shadow-xs">
+                    <div>
+                        <h3 class="font-serif font-bold text-lg text-onyx">Manage Menu Dishes & Drinks</h3>
+                        <p class="text-xs text-onyx-muted">Add new items, set prices in Gh¢, and toggle stock availability.</p>
+                    </div>
+                    <button onclick="openDishModal()" class="bg-onyx hover:bg-onyx-light text-cream px-4 py-2.5 rounded-xl text-xs font-semibold shadow-md transition-all cursor-pointer">+ Add New Item</button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="admin-dishes-grid"></div>
+            </div>
+
+            <!-- TAB 2: CATEGORIES -->
+            <div id="admin-tab-categories" class="admin-tab-content space-y-6 hidden">
+                <div class="bg-white p-6 rounded-2xl border border-cream-muted shadow-xs max-w-xl">
+                    <h3 class="font-serif font-bold text-lg text-onyx mb-1">Add New Category</h3>
+                    <p class="text-xs text-onyx-muted mb-4">Create categories like Breakfast, Main Dishes, Cocktails, etc.</p>
+                    <div class="flex gap-2">
+                        <input type="text" id="new-category-input" placeholder="e.g., Wines & Spirits" class="flex-1 px-4 py-2.5 bg-cream border border-cream-muted rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gold">
+                        <button onclick="addNewCategory()" class="bg-onyx hover:bg-onyx-light text-cream px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors cursor-pointer">Add Category</button>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-2xl border border-cream-muted shadow-xs max-w-xl">
+                    <h3 class="font-serif font-bold text-lg text-onyx mb-3">Existing Categories</h3>
+                    <div id="admin-categories-list" class="space-y-2"></div>
+                </div>
+            </div>
+
+            <!-- TAB 3: HEADER SLIDESHOW -->
+            <div id="admin-tab-slideshow" class="admin-tab-content space-y-6 hidden">
+                <div class="bg-white p-6 rounded-2xl border border-cream-muted shadow-xs max-w-xl space-y-4">
+                    <div>
+                        <h3 class="font-serif font-bold text-lg text-onyx">Add Header Slideshow Image</h3>
+                        <p class="text-xs text-onyx-muted mt-0.5">Upload a photo file or reference a relative image path (e.g. <code>images/slide1.jpg</code>).</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-onyx-muted mb-1">Select Image File</label>
+                        <input type="file" id="slide-file-input" accept="image/*" class="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-cream-dark file:text-onyx hover:file:bg-cream-muted">
+                    </div>
+                    <div class="text-center font-bold text-xs text-onyx-muted">- OR -</div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-onyx-muted mb-1">Image Path / URL</label>
+                        <input type="text" id="slide-url-input" placeholder="images/slide1.jpg" class="w-full px-4 py-2 bg-cream border border-cream-muted rounded-xl text-sm">
+                    </div>
+                    <button onclick="addSlideImage()" class="w-full py-3 bg-onyx hover:bg-onyx-light text-cream rounded-xl text-sm font-semibold shadow-md transition-colors cursor-pointer">Add to Slideshow</button>
+                </div>
+                <div class="bg-white p-6 rounded-2xl border border-cream-muted shadow-xs">
+                    <h3 class="font-serif font-bold text-lg text-onyx mb-4">Active Slideshow Images (Use ▲ ▼ to reorder)</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4" id="admin-slides-grid"></div>
+                </div>
+            </div>
+
+            <!-- TAB 4: QR CODES & PDF PRINT -->
+            <div id="admin-tab-qrcodes" class="admin-tab-content space-y-6 hidden">
+                <div class="bg-white p-6 rounded-2xl border border-cream-muted shadow-xs flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div>
+                        <h3 class="font-serif font-bold text-lg text-onyx">Table QR Code Generator & PDF Export</h3>
+                        <p class="text-xs text-onyx-muted">Generate printable QR cards for each dining table.</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <select id="qr-table-select" onchange="generateTableQR()" class="px-4 py-2.5 bg-cream border border-cream-muted rounded-xl text-sm font-semibold text-onyx focus:outline-none focus:ring-2 focus:ring-gold"></select>
+                        <button onclick="window.print()" class="bg-onyx hover:bg-onyx-light text-cream px-5 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-colors flex items-center gap-2 cursor-pointer">
+                            🖨️ Print / Save as PDF
+                        </button>
+                    </div>
+                </div>
+                <div id="printable-qr-container" class="flex justify-center p-8 bg-white border-2 border-dashed border-cream-muted rounded-2xl shadow-xs">
+                    <div class="bg-cream p-8 rounded-3xl border border-cream-muted shadow-xl text-center max-w-sm w-full space-y-4">
+                        <img id="qr-card-logo" src="images/logo.jpg" alt="Logo" class="w-14 h-14 object-cover rounded-full mx-auto border-2 border-gold shadow-sm" onerror="this.src='https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=300&q=80'">
+                        <div>
+                            <h4 id="qr-card-restaurant" class="font-serif font-bold text-xl text-onyx">Ankobra Beach</h4>
+                            <p class="text-xs text-gold-dark uppercase tracking-widest font-bold mt-1">Scan to View Digital Menu</p>
+                        </div>
+                        <div id="qrcode-box" class="bg-white p-4 inline-block rounded-2xl shadow-sm border border-cream-muted mx-auto"></div>
+                        <div class="pt-2">
+                            <span id="qr-card-table-label" class="inline-block bg-onyx text-cream px-6 py-2 rounded-full font-serif font-bold text-base shadow-md">Table 1</span>
+                        </div>
+                        <p class="text-[11px] text-onyx-muted italic">Where Africa meets the world • Scan to browse our menu.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 5: SETTINGS -->
+            <div id="admin-tab-settings" class="admin-tab-content space-y-6 hidden">
+                <div class="bg-white p-6 rounded-2xl border border-cream-muted shadow-xs max-w-2xl space-y-5">
+                    <div>
+                        <h3 class="font-serif font-bold text-lg text-onyx">Resort Branding & Setup</h3>
+                        <p class="text-xs text-onyx-muted mt-0.5">Customize your resort name, currency, and table count.</p>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-onyx-muted mb-1">Resort Name</label>
+                            <input type="text" id="set-name" class="w-full px-4 py-2.5 bg-cream border border-cream-muted rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-onyx-muted mb-1">Tagline</label>
+                            <input type="text" id="set-tagline" class="w-full px-4 py-2.5 bg-cream border border-cream-muted rounded-xl text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-onyx-muted mb-1">Organization Logo Path or Upload</label>
+                        <div class="flex items-center gap-4">
+                            <img id="set-logo-preview" src="images/logo.jpg" alt="Logo" class="w-12 h-12 rounded-full object-cover border border-cream-muted bg-white" onerror="this.src='https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=300&q=80'">
+                            <div class="flex-1 space-y-2">
+                                <input type="file" id="set-logo-file" accept="image/*" class="w-full text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-cream-dark file:text-onyx hover:file:bg-cream-muted">
+                                <input type="text" id="set-logo-path" placeholder="images/logo.jpg" class="w-full px-3 py-1.5 bg-cream border border-cream-muted rounded-xl text-xs">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-onyx-muted mb-1">Currency Symbol</label>
+                            <select id="set-currency" class="w-full px-4 py-2.5 bg-cream border border-cream-muted rounded-xl text-sm font-semibold">
+                                <option value="Gh¢">Gh¢ (Ghanaian Cedi)</option>
+                                <option value="$">$ (USD)</option>
+                                <option value="€">€ (EUR)</option>
+                                <option value="£">£ (GBP)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-onyx-muted mb-1">Custom Symbol</label>
+                            <input type="text" id="set-custom-currency" placeholder="e.g. GHS, Gh¢" class="w-full px-4 py-2.5 bg-cream border border-cream-muted rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase text-onyx-muted mb-1">Total Dining Tables</label>
+                            <input type="number" id="set-tables" min="1" max="100" class="w-full px-4 py-2.5 bg-cream border border-cream-muted rounded-xl text-sm font-semibold">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-onyx-muted mb-1">Address / Location</label>
+                        <input type="text" id="set-address" class="w-full px-4 py-2.5 bg-cream border border-cream-muted rounded-xl text-sm">
+                    </div>
+                    <div class="pt-2 border-t border-cream-muted flex items-center justify-between">
+                        <div>
+                            <h4 class="font-bold text-sm text-onyx">Out-of-Stock Handling</h4>
+                            <p class="text-xs text-onyx-muted">Choose how out-of-stock items appear on customer menus.</p>
+                        </div>
+                        <select id="set-stock-mode" class="px-4 py-2 bg-cream border border-cream-muted rounded-xl text-xs font-semibold">
+                            <option value="hide">Hide completely from menu</option>
+                            <option value="disable">Show as Grayed Out / Sold Out</option>
+                        </select>
+                    </div>
+
+                    <!-- Export JSON Menu Update Button -->
+                    <div class="pt-4 border-t border-cream-muted flex items-center justify-between bg-cream-dark p-4 rounded-xl">
+                        <div>
+                            <h4 class="font-bold text-sm text-onyx">Export Live Menu Data (JSON)</h4>
+                            <p class="text-xs text-onyx-muted">Download your updated `menu-data.json` file to push changes live instantly.</p>
+                        </div>
+                        <button onclick="exportMenuJson()" class="px-4 py-2 bg-onyx hover:bg-onyx-light text-cream rounded-xl text-xs font-bold shadow-sm transition-colors cursor-pointer">📥 Download menu-data.json</button>
+                    </div>
+
+                    <div class="pt-4">
+                        <button onclick="saveRestaurantSettings()" class="w-full py-3 bg-onyx hover:bg-onyx-light text-cream rounded-xl text-sm font-semibold shadow-md transition-colors cursor-pointer">Save Settings</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ADD/EDIT ITEM MODAL -->
+    <div id="dish-form-modal" class="fixed inset-0 bg-onyx/80 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-cream w-full max-w-lg rounded-2xl p-6 shadow-2xl border border-cream-muted space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center">
+                <h3 id="dish-modal-title" class="font-serif font-bold text-xl text-onyx">Add New Item</h3>
+                <button onclick="closeDishModal()" class="text-onyx-muted hover:text-onyx font-bold text-lg cursor-pointer">✕</button>
+            </div>
+            <input type="hidden" id="edit-dish-id">
+            <div>
+                <label class="block text-xs font-bold uppercase text-onyx-muted mb-1">Item Name</label>
+                <input type="text" id="dish-name" placeholder="e.g. Grilled Tilapia" class="w-full px-4 py-2.5 bg-white border border-cream-muted rounded-xl text-sm">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase text-onyx-muted mb-1">Category</label>
+                    <select id="dish-category" class="w-full px-4 py-2.5 bg-white border border-cream-muted rounded-xl text-sm font-semibold"></select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase text-onyx-muted mb-1">Price (Gh¢)</label>
+                    <input type="number" step="0.01" id="dish-price" placeholder="199.00" class="w-full px-4 py-2.5 bg-white border border-cream-muted rounded-xl text-sm">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold uppercase text-onyx-muted mb-1">Description</label>
+                <textarea id="dish-desc" rows="3" placeholder="Flavoursome herbs and spices..." class="w-full px-4 py-2.5 bg-white border border-cream-muted rounded-xl text-sm"></textarea>
+            </div>
+            <div>
+                <label class="block text-xs font-bold uppercase text-onyx-muted mb-1">Image Path or File Upload</label>
+                <input type="file" id="dish-image-file" accept="image/*" class="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-cream-dark file:text-onyx hover:file:bg-cream-muted mb-2">
+                <input type="text" id="dish-image-url" placeholder="images/salad.jpg" class="w-full px-4 py-2 bg-white border border-cream-muted rounded-xl text-xs">
+            </div>
+            <div>
+                <label class="block text-xs font-bold uppercase text-onyx-muted mb-2">Attributes</label>
+                <div class="grid grid-cols-2 gap-2 text-xs font-medium">
+                    <label class="flex items-center space-x-2 bg-white p-2.5 rounded-xl border border-cream-muted cursor-pointer"><input type="checkbox" value="Vegetarian" class="dish-tag-checkbox accent-onyx"><span>🌱 Vegetarian</span></label>
+                    <label class="flex items-center space-x-2 bg-white p-2.5 rounded-xl border border-cream-muted cursor-pointer"><input type="checkbox" value="Chef Special" class="dish-tag-checkbox accent-onyx"><span>⭐ Signature</span></label>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3 pt-2">
+                <input type="checkbox" id="dish-in-stock" checked class="w-4 h-4 accent-onyx">
+                <label for="dish-in-stock" class="text-sm font-medium text-onyx">Item is currently in stock & available</label>
+            </div>
+            <div class="flex space-x-3 pt-4 border-t border-cream-muted">
+                <button onclick="closeDishModal()" class="flex-1 py-3 bg-cream-dark hover:bg-cream-muted text-onyx rounded-xl text-sm font-medium cursor-pointer">Cancel</button>
+                <button onclick="saveDish()" class="flex-1 py-3 bg-onyx hover:bg-onyx-light text-cream rounded-xl text-sm font-semibold shadow-md cursor-pointer">Save Item</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DYNAMIC DATA LOADING & APPLICATION LOGIC -->
+    <script>
+        // Initialize Supabase Client
+        const SUPABASE_URL = 'https://hxkxjeqjuackecdzflra.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_eINWiHdqLN8WBuzPPtgOmA_DsFgpsrG';
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const fallbackMenuData = {
+            settings: { restaurantName: "Ankobra Beach", tagline: "Where Africa meets the world", address: "Ankobra Beach Resort", currency: "Gh¢", customCurrency: "", totalTables: 12, stockMode: "hide", logo: "images/logo.jpg" },
+            categories: ["Breakfast", "Starters & Snacks", "Main Dishes", "Ghanaian Specialties", "Pizza & Burgers", "Cocktails & Mocktails", "Drinks & Spirits", "Sweet Treats"],
+            slides: [
+                "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=1200&q=80",
+                "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=1200&q=80",
+                "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1200&q=80"
+            ],
+            dishes: [
+                { id: 1, name: "Full Breakfast", category: "Breakfast", price: 94.00, desc: "Two Cups of Ghanaian Coffee or Fine Tea, Hot Porridge/Oats, Home-made Bread Basket with Butter, Jam, Local Honey, Avocado/Aubergine/Baked Beans, Two Eggs, Chicken Sausages, Seasonal Garden Fruits & Fresh Juice.", image: "https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=600&q=80", tags: ["Chef Special"], inStock: true },
+                { id: 2, name: "Italian Espresso", category: "Breakfast", price: 27.00, desc: "Freshly brewed Italian espresso.", image: "https://images.unsplash.com/photo-1510591509098-f4fdc6d0ff04?auto=format&fit=crop&w=600&q=80", tags: [], inStock: true },
+                { id: 3, name: "Cappuccino", category: "Breakfast", price: 46.00, desc: "Rich cappuccino with steamed milk foam.", image: "https://images.unsplash.com/photo-1572442388796-11668a67e53d?auto=format&fit=crop&w=600&q=80", tags: [], inStock: true },
+                { id: 4, name: "Latte Macchiato", category: "Breakfast", price: 46.00, desc: "Layered Italian latte macchiato.", image: "https://images.unsplash.com/photo-1534778101976-62847782c213?auto=format&fit=crop&w=600&q=80", tags: [], inStock: true },
+                { id: 5, name: "Plantain Prelude", category: "Starters & Snacks", price: 57.00, desc: "A Basket of Fresh Fried Plantain Chips Served with A Zesty Dipping Sauce (Red / Green).", image: "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&w=600&q=80", tags: ["Vegetarian"], inStock: true },
+                { id: 6, name: "Kelewele", category: "Starters & Snacks", price: 64.00, desc: "A Delectable Local Classic; Ripe Red Plantain, Spices, Groundnuts... Finger Licking Good Stuff!", image: "https://images.unsplash.com/photo-1604329760661-e71dc83f8f26?auto=format&fit=crop&w=600&q=80", tags: ["Vegetarian", "Chef Special"], inStock: true },
+                { id: 7, name: "Ankobra Garden Salad", category: "Starters & Snacks", price: 94.00, desc: "Freshly Harvested Salad Leaves and Seasonal Garden Vegetables with Our Delicious House Dressing and Toasted Home-made Bread.", image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=600&q=80", tags: ["Vegetarian", "Chef Special"], inStock: true },
+                { id: 8, name: "Ghanaian Goulash", category: "Main Dishes", price: 212.00, desc: "Our Signature Take on a Classic Local Dish; A Hearty and Flavourful Beef Stew with Beef Fillet / Served with a Choice of Plain Rice, Potatoes or Noodles.", image: "https://images.unsplash.com/photo-1534939561126-855b8675edd7?auto=format&fit=crop&w=600&q=80", tags: ["Chef Special"], inStock: true },
+                { id: 9, name: "Moringa Fish", category: "Main Dishes", price: 251.00, desc: "Delicately Seasoned Fish Filet (Grilled), with our Unique Creamy Moringa Sauce made From our Own Moringa Leaf Harvest / Served with Linguine, Plain Rice, Fried Rice or Jollof Rice.", image: "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=600&q=80", tags: ["Chef Special"], inStock: true },
+                { id: 10, name: "Atlantic Lobster", category: "Main Dishes", price: 600.00, desc: "Juicy and Tender Grilled Lobster / Served with Chips, Plain Rice, Fried Rice or Jollof Rice.", image: "https://images.unsplash.com/photo-1565680314427-f0ab829f2f5b?auto=format&fit=crop&w=600&q=80", tags: ["Chef Special"], inStock: true },
+                { id: 11, name: "Okro Stew", category: "Ghanaian Specialties", price: 182.00, desc: "A Tasty, Silken-Textured and Colorful Local Dish – Finely Sliced Okro, Tomato, Onions, Garlic, Red Palm Oil / Chicken or Fish.", image: "https://images.unsplash.com/photo-1543339308-43e59d6b73a6?auto=format&fit=crop&w=600&q=80", tags: ["Chef Special"], inStock: true },
+                { id: 12, name: "Grilled Tilapia", category: "Ghanaian Specialties", price: 199.00, desc: "A Whole Grilled Tilapia Smothered in Flavoursome Herbs and Spices with a Zesty, Picante Dipping Sauce.", image: "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80", tags: ["Chef Special"], inStock: true },
+                { id: 13, name: "Red Red", category: "Ghanaian Specialties", price: 157.00, desc: "Traditional Stew of Black-Eyed Beans Cooked in a Gently Spiced Tomato Sauce / Fish or Chicken.", image: "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80", tags: ["Vegetarian"], inStock: true },
+                { id: 14, name: "Margherita Pizza", category: "Pizza & Burgers", price: 177.00, desc: "Tomatoes, Cheese, Basil.", image: "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=600&q=80", tags: ["Vegetarian"], inStock: true },
+                { id: 15, name: "Ankobra Bonanza Burger", category: "Pizza & Burgers", price: 337.00, desc: "Home-made Burger Bun, Beef Patty, Lettuce, Cheese, Bacon, Fried Egg, Served with French Fries.", image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=80", tags: ["Chef Special"], inStock: true },
+                { id: 16, name: "Gin Tonic", category: "Cocktails & Mocktails", price: 80.00, desc: "Gordon's Gin, Tonic, Lime.", image: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&w=600&q=80", tags: [], inStock: true },
+                { id: 17, name: "Bush Margarita", category: "Cocktails & Mocktails", price: 67.00, desc: "Akpeteshie, Lime Juice, Home-Made Sugar Syrup (Margarita with a Ghanaian Twist).", image: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?auto=format&fit=crop&w=600&q=80", tags: ["Chef Special"], inStock: true },
+                { id: 18, name: "Virgin Mojito", category: "Cocktails & Mocktails", price: 80.00, desc: "Sprite, Fresh Mint / Basil Leaves, Muddled Lime, Sugar.", image: "https://images.unsplash.com/photo-1536935338788-846bb9981813?auto=format&fit=crop&w=600&q=80", tags: ["Vegetarian"], inStock: true },
+                { id: 19, name: "Fresh Pressed Orange Juice", category: "Drinks & Spirits", price: 49.00, desc: "100% natural freshly pressed orange juice.", image: "https://images.unsplash.com/photo-1613478223719-2ab802602423?auto=format&fit=crop&w=600&q=80", tags: [], inStock: true },
+                { id: 20, name: "Bissap", category: "Drinks & Spirits", price: 49.00, desc: "A Delicious Local Drink made From Dried Hibiscus Blossoms.", image: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=600&q=80", tags: [], inStock: true },
+                { id: 21, name: "Pancake Party", category: "Sweet Treats", price: 79.00, desc: "Classic Crepes, prepared with Butter / Served with Ice Cream.", image: "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?auto=format&fit=crop&w=600&q=80", tags: ["Vegetarian"], inStock: true },
+                { id: 22, name: "Kwadu Kickers", category: "Sweet Treats", price: 60.00, desc: "Light, Sweet Fried, Banana Balls / Served with Ice Cream.", image: "https://images.unsplash.com/photo-1587314168485-3236d6710814?auto=format&fit=crop&w=600&q=80", tags: ["Vegetarian"], inStock: true }
+            ]
+        };
+
+        let appData = fallbackMenuData;
+
+        let currentTable = 1;
+        let currentCategory = 'all';
+        let currentDietary = 'all';
+        let searchQuery = '';
+        let activeSlideIndex = 0;
+        let slideInterval = null;
+        let qrCodeInstance = null;
+
+        let logoTapCount = 0;
+        let logoTapTimer = null;
+
+        function handleLogoTap() {
+            logoTapCount++;
+            if (logoTapTimer) clearTimeout(logoTapTimer);
+            if (logoTapCount === 3) {
+                logoTapCount = 0;
+                openAdminLogin();
+            } else {
+                logoTapTimer = setTimeout(() => { logoTapCount = 0; }, 600);
+            }
+        }
+
+       window.addEventListener('DOMContentLoaded', async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tableNum = urlParams.get('table');
+    if (tableNum) currentTable = tableNum;
+
+    try {
+        // Fetch everything concurrently in one single batch
+        const [settingsRes, categoriesRes, slidesRes, dishesRes] = await Promise.all([
+            _supabase.from('resort_settings').select('*').single(),
+            _supabase.from('categories').select('*'),
+            _supabase.from('slides').select('*'),
+            _supabase.from('menu_items').select('*')
+        ]);
+
+        const settingsData = settingsRes.data;
+        const categoriesData = categoriesRes.data;
+        const slidesData = slidesRes.data;
+        const dishesData = dishesRes.data;
+
+        if (settingsData) {
+            appData.settings = {
+                restaurantName: settingsData.restaurant_name,
+                tagline: settingsData.tagline,
+                address: settingsData.address,
+                currency: settingsData.currency,
+                customCurrency: settingsData.custom_currency || "",
+                totalTables: settingsData.total_tables || 12,
+                stockMode: settingsData.stock_mode || "hide",
+                logo: settingsData.logo
+            };
+        }
+        if (categoriesData && categoriesData.length > 0) appData.categories = categoriesData.map(c => c.name);
+        if (slidesData && slidesData.length > 0) appData.slides = slidesData.map(s => s.url);
+        
+        if (dishesData && dishesData.length > 0) {
+            const dbDishes = dishesData.map(d => ({
+                id: d.id,
+                name: d.name,
+                category: d.category,
+                price: Number(d.price),
+                desc: d.description,
+                image: d.image,
+                tags: d.tags || [],
+                inStock: d.in_stock
+            }));
+
+            const dbIds = new Set(dbDishes.map(d => d.name.toLowerCase()));
+            const remainingFallback = fallbackMenuData.dishes.filter(f => !dbIds.has(f.name.toLowerCase()));
+            appData.dishes = [...dbDishes, ...remainingFallback];
+        }
+    } catch (err) {
+        console.log("Supabase load error, using fallback data:", err);
+    }
+
+    document.getElementById('top-table-badge').innerText = `Table ${currentTable}`;
+    document.getElementById('top-bar-restaurant-name').innerText = appData.settings.restaurantName;
+
+    renderCustomerHeader();
+    startSlideshow();
+    renderCategoryTabs();
+    renderCustomerMenu();
+});
+
+        function setCategory(cat, btnElement) {
+            currentCategory = cat;
+            document.querySelectorAll('.cat-pill').forEach(b => {
+                b.className = "cat-pill px-4 py-2 bg-cream-dark text-onyx-muted hover:text-onyx rounded-full text-xs font-semibold whitespace-nowrap transition-all shadow-xs cursor-pointer";
+            });
+            btnElement.className = "cat-pill px-4 py-2 bg-onyx text-cream rounded-full text-xs font-semibold whitespace-nowrap shadow-xs transition-all cursor-pointer";
+            renderCustomerMenu();
+        }
+
+        function setDietaryFilter(diet, btnElement) {
+            currentDietary = diet;
+            document.querySelectorAll('.diet-btn').forEach(b => {
+                b.className = "diet-btn px-3 py-1 bg-cream-dark text-onyx-muted rounded-md font-medium whitespace-nowrap hover:bg-cream-muted transition-all cursor-pointer";
+            });
+            btnElement.className = "diet-btn px-3 py-1 bg-onyx text-cream rounded-md font-medium whitespace-nowrap transition-all shadow-xs cursor-pointer";
+            renderCustomerMenu();
+        }
+
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            searchQuery = e.target.value.toLowerCase();
+            renderCustomerMenu();
+        });
+
+        function renderCustomerMenu() {
+            const container = document.getElementById('menu-items-container');
+            container.innerHTML = '';
+            const symbol = appData.settings.customCurrency || appData.settings.currency;
+
+            const filtered = appData.dishes.filter(item => {
+                if (!item.inStock && appData.settings.stockMode === 'hide') return false;
+                const matchesCat = currentCategory === 'all' || item.category === currentCategory;
+                const matchesDiet = currentDietary === 'all' || item.tags.includes(currentDietary);
+                const matchesSearch = item.name.toLowerCase().includes(searchQuery) || item.desc.toLowerCase().includes(searchQuery);
+                return matchesCat && matchesDiet && matchesSearch;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="text-center py-16 text-onyx-muted space-y-2"><p class="text-3xl">🍽️</p><p class="text-sm font-medium">No items found matching your selection.</p></div>`;
+                return;
+            }
+
+            filtered.forEach(item => {
+                const card = document.createElement('div');
+                const isDisabled = !item.inStock;
+                card.className = `bg-white p-3.5 rounded-2xl border border-cream-muted flex items-center space-x-4 transition-all shadow-xs ${isDisabled ? 'opacity-60 bg-cream-dark' : 'hover:border-gold cursor-pointer active:scale-[0.99]'}`;
+                if (!isDisabled) card.onclick = () => openItemModal(item.id);
+
+                card.innerHTML = `
+                    <div class="relative w-20 h-20 rounded-xl overflow-hidden shrink-0 bg-onyx-muted">
+                        <img src="${item.image}" alt="${item.name}" class="w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80'">
+                        ${isDisabled ? '<div class="absolute inset-0 bg-black/60 flex items-center justify-center text-[10px] text-white font-bold uppercase tracking-wider">Sold Out</div>' : ''}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-start">
+                            <h3 class="font-serif font-bold text-onyx text-sm truncate">${item.name}</h3>
+                            <span class="font-serif font-bold text-gold-dark text-sm ml-2 shrink-0">${symbol} ${Number(item.price).toFixed(2)}</span>
+                        </div>
+                        <p class="text-xs text-onyx-muted line-clamp-2 mt-0.5">${item.desc}</p>
+                        <div class="mt-2 flex flex-wrap gap-1 items-center">
+                            <span class="px-2 py-0.5 bg-cream-dark text-onyx text-[10px] rounded font-semibold">${item.category}</span>
+                            ${item.tags.map(t => `<span class="px-2 py-0.5 bg-cream-muted text-onyx-muted text-[10px] rounded font-medium">${t}</span>`).join('')}
+                            ${isDisabled ? '<span class="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] rounded font-bold">Out of Stock</span>' : ''}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function openItemModal(id) {
+            const item = appData.dishes.find(d => d.id === id);
+            if (!item) return;
+
+            document.getElementById('modal-img').src = item.image;
+            document.getElementById('modal-category').innerText = item.category;
+            document.getElementById('modal-title').innerText = item.name;
+            const symbol = appData.settings.customCurrency || appData.settings.currency;
+            document.getElementById('modal-price').innerText = `${symbol} ${Number(item.price).toFixed(2)}`;
+            document.getElementById('modal-desc').innerText = item.desc;
+
+            const stockBadge = document.getElementById('modal-stock-badge');
+            stockBadge.className = `absolute bottom-4 left-4 px-3 py-1 ${item.inStock ? 'bg-emerald-600' : 'bg-red-600'} text-white rounded-full text-xs font-bold uppercase tracking-wider shadow-md`;
+            stockBadge.innerText = item.inStock ? "Available" : "Out of Stock";
+
+            document.getElementById('modal-tags').innerHTML = item.tags.map(t => `<span class="px-2.5 py-1 bg-cream-dark text-onyx text-xs rounded-lg font-medium">${t}</span>`).join('');
+            document.getElementById('item-modal').classList.remove('hidden');
+        }
+
+        function closeItemModal() {
+            document.getElementById('item-modal').classList.add('hidden');
+        }
+
+        function openAdminLogin() {
+            document.getElementById('admin-pin-input').value = '';
+            document.getElementById('admin-login-error').classList.add('hidden');
+            document.getElementById('admin-login-modal').classList.remove('hidden');
+        }
+
+        function closeAdminLogin() {
+            document.getElementById('admin-login-modal').classList.add('hidden');
+        }
+
+        function verifyAdminPin() {
+            const pin = document.getElementById('admin-pin-input').value;
+            if (pin === '1234' || pin === '0000') {
+                closeAdminLogin();
+                document.getElementById('admin-dashboard').classList.remove('hidden');
+                switchAdminTab('dishes');
+            } else {
+                document.getElementById('admin-login-error').classList.remove('hidden');
+            }
+        }
+
+        function closeAdminDashboard() {
+            document.getElementById('admin-dashboard').classList.add('hidden');
+            renderCustomerHeader();
+            renderCategoryTabs();
+            renderCustomerMenu();
+        }
+
+        function switchAdminTab(tabName) {
+            document.querySelectorAll('.admin-tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.admin-tab-btn').forEach(el => {
+                el.className = "admin-tab-btn py-3.5 border-b-2 border-transparent text-onyx-muted hover:text-onyx font-medium text-sm tracking-wide whitespace-nowrap cursor-pointer";
+            });
+
+            document.getElementById(`admin-tab-${tabName}`).classList.remove('hidden');
+            document.getElementById(`tab-btn-${tabName}`).className = "admin-tab-btn py-3.5 border-b-2 border-onyx text-onyx font-bold text-sm tracking-wide whitespace-nowrap cursor-pointer";
+
+            if (tabName === 'dishes') renderAdminDishes();
+            if (tabName === 'categories') renderAdminCategories();
+            if (tabName === 'slideshow') renderAdminSlides();
+            if (tabName === 'qrcodes') initAdminQRCodes();
+            if (tabName === 'settings') loadSettingsForm();
+        }
+
+        function renderAdminDishes() {
+            const container = document.getElementById('admin-dishes-grid');
+            container.innerHTML = '';
+            const symbol = appData.settings.customCurrency || appData.settings.currency;
+
+            appData.dishes.forEach(item => {
+                const card = document.createElement('div');
+                card.className = "bg-white p-4 rounded-2xl border border-cream-muted flex gap-4 items-center shadow-xs";
+                card.innerHTML = `
+                    <img src="${item.image}" alt="${item.name}" class="w-16 h-16 rounded-xl object-cover shrink-0" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80'">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-start">
+                            <h4 class="font-serif font-bold text-onyx text-sm truncate">${item.name}</h4>
+                            <span class="font-serif font-bold text-gold-dark text-sm ml-2">${symbol} ${Number(item.price).toFixed(2)}</span>
+                        </div>
+                        <p class="text-xs text-onyx-muted truncate mt-0.5">${item.desc}</p>
+                        <div class="mt-2 flex items-center justify-between">
+                            <span class="px-2 py-0.5 bg-cream-dark text-onyx text-[10px] rounded font-semibold">${item.category}</span>
+                            <span class="text-[10px] font-bold ${item.inStock ? 'text-emerald-600' : 'text-red-600'}">${item.inStock ? '● In Stock' : '○ Out of Stock'}</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-1.5 shrink-0">
+                        <button onclick="openDishModal(${item.id})" class="px-3 py-1.5 bg-cream-dark hover:bg-cream-muted text-onyx rounded-lg text-xs font-semibold cursor-pointer">Edit</button>
+                        <button onclick="deleteDish(${item.id})" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold cursor-pointer">Delete</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function openDishModal(dishId = null) {
+            const catSelect = document.getElementById('dish-category');
+            catSelect.innerHTML = appData.categories.map(c => `<option value="${c}">${c}</option>`).join('');
+
+            if (dishId) {
+                const dish = appData.dishes.find(d => d.id === dishId);
+                if (!dish) return;
+                document.getElementById('dish-modal-title').innerText = "Edit Item";
+                document.getElementById('edit-dish-id').value = dish.id;
+                document.getElementById('dish-name').value = dish.name;
+                document.getElementById('dish-category').value = dish.category;
+                document.getElementById('dish-price').value = dish.price;
+                document.getElementById('dish-desc').value = dish.desc;
+                document.getElementById('dish-image-url').value = dish.image;
+                document.getElementById('dish-in-stock').checked = dish.inStock;
+                document.querySelectorAll('.dish-tag-checkbox').forEach(cb => cb.checked = dish.tags.includes(cb.value));
+            } else {
+                document.getElementById('dish-modal-title').innerText = "Add New Item";
+                document.getElementById('edit-dish-id').value = '';
+                document.getElementById('dish-name').value = '';
+                document.getElementById('dish-price').value = '';
+                document.getElementById('dish-desc').value = '';
+                document.getElementById('dish-image-file').value = '';
+                document.getElementById('dish-image-url').value = '';
+                document.getElementById('dish-in-stock').checked = true;
+                document.querySelectorAll('.dish-tag-checkbox').forEach(cb => cb.checked = false);
+            }
+            document.getElementById('dish-form-modal').classList.remove('hidden');
+        }
+
+        function closeDishModal() {
+            document.getElementById('dish-form-modal').classList.add('hidden');
+        }
+
+        async function saveDish() {
+            let id = document.getElementById('edit-dish-id').value;
+            const name = document.getElementById('dish-name').value.trim();
+            const category = document.getElementById('dish-category').value;
+            const price = parseFloat(document.getElementById('dish-price').value);
+            const desc = document.getElementById('dish-desc').value.trim();
+            let image = document.getElementById('dish-image-url').value.trim();
+            const inStock = document.getElementById('dish-in-stock').checked;
+
+            if (!name || isNaN(price)) {
+                alert("Please provide a valid item name and price.");
+                return;
+            }
+
+            // DUPLICATE CHECK: Flag duplicate names when adding new items or renaming
+            const duplicateItem = appData.dishes.find(d => 
+                d.name.toLowerCase() === name.toLowerCase() && String(d.id) !== String(id)
+            );
+
+            if (duplicateItem) {
+                const overwrite = confirm(
+                    `⚠️ DUPLICATE ITEM DETECTED!\n\nAn item named "${duplicateItem.name}" already exists in category "${duplicateItem.category}".\n\nDo you want to UPDATE the existing item with this new information instead of creating a duplicate?`
+                );
+                
+                if (!overwrite) {
+                    return; // User canceled the save
+                }
+                
+                // If user confirms overwrite, set the active ID to the existing duplicate's ID
+                id = duplicateItem.id;
+            }
+
+            const fileInput = document.getElementById('dish-image-file');
+            if (fileInput.files && fileInput.files[0]) {
+                image = await readFileAsBase64(fileInput.files[0]);
+            } else if (!image) {
+                image = duplicateItem ? duplicateItem.image : "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80";
+            }
+
+            const tags = [];
+            document.querySelectorAll('.dish-tag-checkbox:checked').forEach(cb => tags.push(cb.value));
+
+            const dishPayload = { name, category, price, description: desc, image, in_stock: inStock, tags };
+
+            if (id) {
+                await _supabase.from('menu_items').update(dishPayload).eq('id', id);
+            } else {
+                await _supabase.from('menu_items').insert([dishPayload]);
+            }
+
+            closeDishModal();
+
+            // Refresh dishes in background without redirecting out of admin
+            const { data: dishesData } = await _supabase.from('menu_items').select('*');
+            if (dishesData) {
+                const dbDishes = dishesData.map(d => ({
+                    id: d.id, name: d.name, category: d.category, price: Number(d.price),
+                    desc: d.description, image: d.image, tags: d.tags || [], inStock: d.in_stock
+                }));
+                const dbIds = new Set(dbDishes.map(d => d.name.toLowerCase()));
+                const remainingFallback = fallbackMenuData.dishes.filter(f => !dbIds.has(f.name.toLowerCase()));
+                appData.dishes = [...dbDishes, ...remainingFallback];
+            }
+            renderAdminDishes();
+            alert("Item saved successfully!");
+        }
+
+        function renderAdminCategories() {
+            const list = document.getElementById('admin-categories-list');
+            list.innerHTML = '';
+            appData.categories.forEach(cat => {
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center bg-cream p-3 rounded-xl border border-cream-muted text-sm font-medium text-onyx";
+                div.innerHTML = `<span>${cat}</span><button onclick="deleteCategory('${cat}')" class="text-red-600 hover:text-red-800 text-xs font-semibold px-2.5 py-1 bg-white rounded-lg border border-red-100 cursor-pointer">Delete</button>`;
+                list.appendChild(div);
+            });
+        }
+
+        async function addNewCategory() {
+            const input = document.getElementById('new-category-input');
+            const val = input.value.trim();
+            if (val && !appData.categories.includes(val)) {
+                await _supabase.from('categories').insert([{ name: val }]);
+                appData.categories.push(val);
+                input.value = '';
+                renderAdminCategories();
+                renderCategoryTabs();
+            }
+        }
+
+        async function deleteCategory(cat) {
+            if (confirm(`Delete category "${cat}"?`)) {
+                await _supabase.from('categories').delete().eq('name', cat);
+                appData.categories = appData.categories.filter(c => c !== cat);
+                renderAdminCategories();
+                renderCategoryTabs();
+            }
+        }
+
+        function renderAdminSlides() {
+            const grid = document.getElementById('admin-slides-grid');
+            grid.innerHTML = '';
+            appData.slides.forEach((slide, index) => {
+                const card = document.createElement('div');
+                card.className = "relative rounded-xl overflow-hidden border border-cream-muted bg-onyx h-45 group flex flex-col justify-end p-2 shadow-sm";
+                card.innerHTML = `
+                    <img src="${slide}" class="absolute inset-0 w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=300&q=80'">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+                    <div class="relative z-10 flex items-center justify-between gap-1 w-full">
+                        <div class="flex gap-1">
+                            <button onclick="moveSlide(${index}, -1)" ${index === 0 ? 'disabled class="opacity-40 cursor-not-allowed"' : ''} class="bg-white/20 hover:bg-white/40 text-white px-2 py-1 rounded text-xs font-bold backdrop-blur-xs cursor-pointer">▲</button>
+                            <button onclick="moveSlide(${index}, 1)" ${index === appData.slides.length - 1 ? 'disabled class="opacity-40 cursor-not-allowed"' : ''} class="bg-white/20 hover:bg-white/40 text-white px-2 py-1 rounded text-xs font-bold backdrop-blur-xs cursor-pointer">▼</button>
+                        </div>
+                        <button onclick="deleteSlide(${index})" class="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded text-xs font-bold shadow-md cursor-pointer">Remove</button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        async function addSlideImage() {
+            const fileInput = document.getElementById('slide-file-input');
+            const urlInput = document.getElementById('slide-url-input');
+            let imgUrl = urlInput.value.trim();
+
+            if (fileInput.files && fileInput.files[0]) {
+                imgUrl = await readFileAsBase64(fileInput.files[0]);
+            }
+
+            if (imgUrl) {
+                appData.slides.push(imgUrl);
+                await syncSlidesToSupabase();
+                urlInput.value = '';
+                fileInput.value = '';
+                renderAdminSlides();
+            }
+        }
+
+        async function moveSlide(index, direction) {
+            const newIndex = index + direction;
+            if (newIndex < 0 || newIndex >= appData.slides.length) return;
+
+            const temp = appData.slides[index];
+            appData.slides[index] = appData.slides[newIndex];
+            appData.slides[newIndex] = temp;
+
+            await syncSlidesToSupabase();
+            renderAdminSlides();
+        }
+
+        async function syncSlidesToSupabase() {
+            await _supabase.from('slides').delete().neq('id', 0);
+            for (const url of appData.slides) {
+                await _supabase.from('slides').insert([{ url }]);
+            }
+        }
+
+        async function deleteSlide(index) {
+            if (appData.slides.length <= 1) {
+                alert("You must keep at least one header slideshow image.");
+                return;
+            }
+            appData.slides.splice(index, 1);
+            await syncSlidesToSupabase();
+            renderAdminSlides();
+        }
+
+        function initAdminQRCodes() {
+            const select = document.getElementById('qr-table-select');
+            select.innerHTML = '';
+            for (let i = 1; i <= appData.settings.totalTables; i++) {
+                const opt = document.createElement('option');
+                opt.value = i;
+                opt.innerText = `Table ${i}`;
+                select.appendChild(opt);
+            }
+            generateTableQR();
+        }
+
+        function generateTableQR() {
+            const tableNum = document.getElementById('qr-table-select').value;
+            document.getElementById('qr-card-table-label').innerText = `Table ${tableNum}`;
+            document.getElementById('qr-card-restaurant').innerText = appData.settings.restaurantName;
+            document.getElementById('qr-card-logo').src = appData.settings.logo;
+
+            const baseUrl = window.location.origin + window.location.pathname;
+            const targetUrl = `${baseUrl}?table=${tableNum}`;
+
+            const box = document.getElementById('qrcode-box');
+            box.innerHTML = '';
+            qrCodeInstance = new QRCode(box, {
+                text: targetUrl,
+                width: 160,
+                height: 160,
+                colorDark: "#111111",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        }
+
+        function loadSettingsForm() {
+            document.getElementById('set-name').value = appData.settings.restaurantName;
+            document.getElementById('set-tagline').value = appData.settings.tagline;
+            document.getElementById('set-address').value = appData.settings.address;
+            document.getElementById('set-currency').value = appData.settings.currency;
+            document.getElementById('set-custom-currency').value = appData.settings.customCurrency || '';
+            document.getElementById('set-tables').value = appData.settings.totalTables;
+            document.getElementById('set-stock-mode').value = appData.settings.stockMode;
+            document.getElementById('set-logo-path').value = appData.settings.logo;
+            document.getElementById('set-logo-preview').src = appData.settings.logo;
+        }
+
+        async function saveRestaurantSettings() {
+            const restaurantName = document.getElementById('set-name').value;
+            const tagline = document.getElementById('set-tagline').value;
+            const address = document.getElementById('set-address').value;
+            const currency = document.getElementById('set-currency').value;
+            const customCurrency = document.getElementById('set-custom-currency').value;
+            const totalTables = parseInt(document.getElementById('set-tables').value) || 12;
+            const stockMode = document.getElementById('set-stock-mode').value;
+            let logo = document.getElementById('set-logo-path').value.trim();
+
+            const fileInput = document.getElementById('set-logo-file');
+            if (fileInput.files && fileInput.files[0]) {
+                logo = await readFileAsBase64(fileInput.files[0]);
+            }
+
+            await _supabase.from('resort_settings').update({
+                restaurant_name: restaurantName,
+                tagline,
+                address,
+                currency,
+                custom_currency: customCurrency,
+                total_tables: totalTables,
+                stock_mode: stockMode,
+                logo
+            }).eq('id', 1);
+
+            appData.settings.restaurantName = restaurantName;
+            appData.settings.tagline = tagline;
+            appData.settings.address = address;
+            appData.settings.currency = currency;
+            appData.settings.customCurrency = customCurrency;
+            appData.settings.totalTables = totalTables;
+            appData.settings.stockMode = stockMode;
+            appData.settings.logo = logo;
+
+            document.getElementById('top-bar-restaurant-name').innerText = restaurantName;
+            document.getElementById('set-logo-preview').src = logo;
+
+            alert("Settings saved successfully! You remain in the admin panel.");
+        }
+
+        function exportMenuJson() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 4));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", "menu-data.json");
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function readFileAsBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+                reader.readAsDataURL(file);
+            });
+        }
+    </script>
+</body>
+</html>
