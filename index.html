@@ -48,18 +48,18 @@
 
     <!-- CUSTOMER VIEW -->
     <div id="customer-view" class="flex-1 flex flex-col">
-        <!-- Header Slideshow Banner -->
-        <header class="relative w-full h-64 sm:h-80 bg-onyx overflow-hidden shadow-inner">
+        <!-- Header Slideshow Banner (Resized to larger responsive height) -->
+        <header class="relative w-full h-80 sm:h-96 md:h-[420px] bg-onyx overflow-hidden shadow-inner">
             <div id="slideshow-container" class="absolute inset-0 w-full h-full"></div>
             <div class="absolute inset-0 bg-gradient-to-t from-onyx/90 via-onyx/40 to-onyx/20"></div>
 
             <div class="absolute inset-0 flex flex-col items-center justify-center text-center p-4 text-white z-10">
-                <img id="header-logo" src="images/logo.jpg" alt="Logo" class="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-full border-2 border-gold shadow-lg mb-3 bg-white cursor-pointer active:scale-95 transition-transform" onclick="handleLogoTap()" onerror="this.src='https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=300&q=80'">
-                <h1 id="header-title" class="text-2xl sm:text-3xl font-serif font-bold tracking-wider text-cream">Ankobra Beach</h1>
-                <p id="header-tagline" class="text-xs sm:text-sm text-gold-light mt-1 font-light tracking-wide max-w-md">Where Africa meets the world</p>
+                <img id="header-logo" src="images/logo.jpg" alt="Logo" class="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-full border-2 border-gold shadow-lg mb-3 bg-white cursor-pointer active:scale-95 transition-transform" onclick="handleLogoTap()" onerror="this.src='https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=300&q=80'">
+                <h1 id="header-title" class="text-3xl sm:text-4xl font-serif font-bold tracking-wider text-cream">Ankobra Beach</h1>
+                <p id="header-tagline" class="text-sm sm:text-base text-gold-light mt-1 font-light tracking-wide max-w-md">Where Africa meets the world</p>
             </div>
 
-            <div id="slideshow-dots" class="absolute bottom-3 left-0 right-0 flex justify-center space-x-2 z-20"></div>
+            <div id="slideshow-dots" class="absolute bottom-4 left-0 right-0 flex justify-center space-x-2 z-20"></div>
         </header>
 
         <!-- Search Bar Row -->
@@ -168,9 +168,16 @@
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-2xl border border-cream-muted shadow-xs">
                     <div>
                         <h3 class="font-serif font-bold text-lg text-onyx">Manage Menu Dishes & Drinks</h3>
-                        <p class="text-xs text-onyx-muted">Add new items, set prices in Gh¢, and toggle stock availability.</p>
+                        <p class="text-xs text-onyx-muted">Add individual items, bulk import CSV lists, and set pricing.</p>
                     </div>
-                    <button onclick="openDishModal()" class="bg-onyx hover:bg-onyx-light text-cream px-4 py-2.5 rounded-xl text-xs font-semibold shadow-md transition-all cursor-pointer">+ Add New Item</button>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="downloadSampleCsv()" class="bg-cream-dark hover:bg-cream-muted text-onyx border border-cream-muted px-3 py-2 rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer">📥 Download Sample CSV</button>
+                        <label class="bg-gold hover:bg-gold-dark text-onyx px-3 py-2 rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer">
+                            📤 Bulk Upload CSV
+                            <input type="file" id="bulk-csv-input" accept=".csv" class="hidden" onchange="handleBulkCsvUpload(event)">
+                        </label>
+                        <button onclick="openDishModal()" class="bg-onyx hover:bg-onyx-light text-cream px-4 py-2 rounded-xl text-xs font-semibold shadow-md transition-all cursor-pointer">+ Add Single Item</button>
+                    </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="admin-dishes-grid"></div>
             </div>
@@ -210,7 +217,7 @@
                     <button onclick="addSlideImage()" class="w-full py-3 bg-onyx hover:bg-onyx-light text-cream rounded-xl text-sm font-semibold shadow-md transition-colors cursor-pointer">Add to Slideshow</button>
                 </div>
                 <div class="bg-white p-6 rounded-2xl border border-cream-muted shadow-xs">
-                    <h3 class="font-serif font-bold text-lg text-onyx mb-4">Active Slideshow Images (Use ▲ ▼ to reorder)</h3>
+                    <h3 class="font-serif font-bold text-lg text-onyx mb-4">Active Slideshow Images</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4" id="admin-slides-grid"></div>
                 </div>
             </div>
@@ -438,68 +445,113 @@
             }
         }
 
-       window.addEventListener('DOMContentLoaded', async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const tableNum = urlParams.get('table');
-    if (tableNum) currentTable = tableNum;
+        window.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const tableNum = urlParams.get('table');
+            if (tableNum) currentTable = tableNum;
 
-    try {
-        // Fetch everything concurrently in one single batch
-        const [settingsRes, categoriesRes, slidesRes, dishesRes] = await Promise.all([
-            _supabase.from('resort_settings').select('*').single(),
-            _supabase.from('categories').select('*'),
-            _supabase.from('slides').select('*'),
-            _supabase.from('menu_items').select('*')
-        ]);
+            try {
+                // Perform parallel fetches to eliminate loading delays
+                const [settingsRes, categoriesRes, slidesRes, dishesRes] = await Promise.all([
+                    _supabase.from('resort_settings').select('*').single(),
+                    _supabase.from('categories').select('*'),
+                    _supabase.from('slides').select('*'),
+                    _supabase.from('menu_items').select('*')
+                ]);
 
-        const settingsData = settingsRes.data;
-        const categoriesData = categoriesRes.data;
-        const slidesData = slidesRes.data;
-        const dishesData = dishesRes.data;
+                if (settingsRes.data) {
+                    const s = settingsRes.data;
+                    appData.settings = {
+                        restaurantName: s.restaurant_name,
+                        tagline: s.tagline,
+                        address: s.address,
+                        currency: s.currency,
+                        customCurrency: s.custom_currency || "",
+                        totalTables: s.total_tables || 12,
+                        stockMode: s.stock_mode || "hide",
+                        logo: s.logo
+                    };
+                }
+                if (categoriesRes.data && categoriesRes.data.length > 0) {
+                    appData.categories = categoriesRes.data.map(c => c.name);
+                }
+                if (slidesRes.data && slidesRes.data.length > 0) {
+                    appData.slides = slidesRes.data.map(s => s.url);
+                }
+                if (dishesRes.data && dishesRes.data.length > 0) {
+                    const dbDishes = dishesRes.data.map(d => ({
+                        id: d.id,
+                        name: d.name,
+                        category: d.category,
+                        price: Number(d.price),
+                        desc: d.description,
+                        image: d.image,
+                        tags: d.tags || [],
+                        inStock: d.in_stock !== undefined ? d.in_stock : true
+                    }));
 
-        if (settingsData) {
-            appData.settings = {
-                restaurantName: settingsData.restaurant_name,
-                tagline: settingsData.tagline,
-                address: settingsData.address,
-                currency: settingsData.currency,
-                customCurrency: settingsData.custom_currency || "",
-                totalTables: settingsData.total_tables || 12,
-                stockMode: settingsData.stock_mode || "hide",
-                logo: settingsData.logo
-            };
+                    const dbIds = new Set(dbDishes.map(d => d.name.toLowerCase()));
+                    const remainingFallback = fallbackMenuData.dishes.filter(f => !dbIds.has(f.name.toLowerCase()));
+                    appData.dishes = [...dbDishes, ...remainingFallback];
+                }
+            } catch (err) {
+                console.log("Supabase load error, using fallback data:", err);
+            }
+
+            document.getElementById('top-table-badge').innerText = `Table ${currentTable}`;
+            document.getElementById('top-bar-restaurant-name').innerText = appData.settings.restaurantName;
+
+            renderCustomerHeader();
+            startSlideshow();
+            renderCategoryTabs();
+            renderCustomerMenu();
+        });
+
+        function renderCustomerHeader() {
+            document.getElementById('header-logo').src = appData.settings.logo;
+            document.getElementById('header-title').innerText = appData.settings.restaurantName;
+            document.getElementById('header-tagline').innerText = appData.settings.tagline;
+            document.getElementById('footer-address').innerText = appData.settings.address + " — Where Africa meets the world";
+
+            const container = document.getElementById('slideshow-container');
+            const dotsContainer = document.getElementById('slideshow-dots');
+            container.innerHTML = '';
+            dotsContainer.innerHTML = '';
+
+            appData.slides.forEach((slide, index) => {
+                const img = document.createElement('img');
+                img.src = slide;
+                img.className = `absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out ${index === activeSlideIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`;
+                container.appendChild(img);
+
+                const dot = document.createElement('button');
+                dot.className = `w-2.5 h-2.5 rounded-full transition-all cursor-pointer ${index === activeSlideIndex ? 'bg-gold w-7' : 'bg-white/50'}`;
+                dot.onclick = () => { activeSlideIndex = index; renderCustomerHeader(); startSlideshow(); };
+                dotsContainer.appendChild(dot);
+            });
         }
-        if (categoriesData && categoriesData.length > 0) appData.categories = categoriesData.map(c => c.name);
-        if (slidesData && slidesData.length > 0) appData.slides = slidesData.map(s => s.url);
-        
-        if (dishesData && dishesData.length > 0) {
-            const dbDishes = dishesData.map(d => ({
-                id: d.id,
-                name: d.name,
-                category: d.category,
-                price: Number(d.price),
-                desc: d.description,
-                image: d.image,
-                tags: d.tags || [],
-                inStock: d.in_stock
-            }));
 
-            const dbIds = new Set(dbDishes.map(d => d.name.toLowerCase()));
-            const remainingFallback = fallbackMenuData.dishes.filter(f => !dbIds.has(f.name.toLowerCase()));
-            appData.dishes = [...dbDishes, ...remainingFallback];
+        function startSlideshow() {
+            if (slideInterval) clearInterval(slideInterval);
+            slideInterval = setInterval(() => {
+                if (appData.slides.length > 1) {
+                    activeSlideIndex = (activeSlideIndex + 1) % appData.slides.length;
+                    renderCustomerHeader();
+                }
+            }, 5000);
         }
-    } catch (err) {
-        console.log("Supabase load error, using fallback data:", err);
-    }
 
-    document.getElementById('top-table-badge').innerText = `Table ${currentTable}`;
-    document.getElementById('top-bar-restaurant-name').innerText = appData.settings.restaurantName;
-
-    renderCustomerHeader();
-    startSlideshow();
-    renderCategoryTabs();
-    renderCustomerMenu();
-});
+        function renderCategoryTabs() {
+            const container = document.getElementById('category-tabs-container');
+            container.innerHTML = `<button onclick="setCategory('all', this)" class="cat-pill px-4 py-2 bg-onyx text-cream rounded-full text-xs font-semibold whitespace-nowrap shadow-xs transition-all cursor-pointer">All Items</button>`;
+            appData.categories.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.onclick = () => setCategory(cat, btn);
+                btn.className = "cat-pill px-4 py-2 bg-cream-dark text-onyx-muted hover:text-onyx rounded-full text-xs font-semibold whitespace-nowrap transition-all shadow-xs cursor-pointer";
+                btn.innerText = cat;
+                container.appendChild(btn);
+            });
+        }
 
         function setCategory(cat, btnElement) {
             currentCategory = cat;
@@ -546,7 +598,7 @@
                 const card = document.createElement('div');
                 const isDisabled = !item.inStock;
                 card.className = `bg-white p-3.5 rounded-2xl border border-cream-muted flex items-center space-x-4 transition-all shadow-xs ${isDisabled ? 'opacity-60 bg-cream-dark' : 'hover:border-gold cursor-pointer active:scale-[0.99]'}`;
-                if (!isDisabled) card.onclick = () => openItemModal(item.id);
+                if (!isDisabled) card.onclick = () => openItemModal(item);
 
                 card.innerHTML = `
                     <div class="relative w-20 h-20 rounded-xl overflow-hidden shrink-0 bg-onyx-muted">
@@ -570,8 +622,7 @@
             });
         }
 
-        function openItemModal(id) {
-            const item = appData.dishes.find(d => d.id === id);
+        function openItemModal(item) {
             if (!item) return;
 
             document.getElementById('modal-img').src = item.image;
@@ -642,7 +693,8 @@
             container.innerHTML = '';
             const symbol = appData.settings.customCurrency || appData.settings.currency;
 
-            appData.dishes.forEach(item => {
+            // Render dishes using direct index positioning to prevent mismatched edits
+            appData.dishes.forEach((item, index) => {
                 const card = document.createElement('div');
                 card.className = "bg-white p-4 rounded-2xl border border-cream-muted flex gap-4 items-center shadow-xs";
                 card.innerHTML = `
@@ -659,23 +711,22 @@
                         </div>
                     </div>
                     <div class="flex flex-col gap-1.5 shrink-0">
-                        <button onclick="openDishModal(${item.id})" class="px-3 py-1.5 bg-cream-dark hover:bg-cream-muted text-onyx rounded-lg text-xs font-semibold cursor-pointer">Edit</button>
-                        <button onclick="deleteDish(${item.id})" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold cursor-pointer">Delete</button>
+                        <button onclick="openDishModal(${index})" class="px-3 py-1.5 bg-cream-dark hover:bg-cream-muted text-onyx rounded-lg text-xs font-semibold cursor-pointer">Edit</button>
+                        <button onclick="deleteDishByIndex(${index})" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold cursor-pointer">Delete</button>
                     </div>
                 `;
                 container.appendChild(card);
             });
         }
 
-        function openDishModal(dishId = null) {
+        function openDishModal(itemIndex = null) {
             const catSelect = document.getElementById('dish-category');
             catSelect.innerHTML = appData.categories.map(c => `<option value="${c}">${c}</option>`).join('');
 
-            if (dishId) {
-                const dish = appData.dishes.find(d => d.id === dishId);
-                if (!dish) return;
+            if (itemIndex !== null && itemIndex >= 0 && appData.dishes[itemIndex]) {
+                const dish = appData.dishes[itemIndex];
                 document.getElementById('dish-modal-title').innerText = "Edit Item";
-                document.getElementById('edit-dish-id').value = dish.id;
+                document.getElementById('edit-dish-id').value = dish.id || '';
                 document.getElementById('dish-name').value = dish.name;
                 document.getElementById('dish-category').value = dish.category;
                 document.getElementById('dish-price').value = dish.price;
@@ -715,21 +766,16 @@
                 return;
             }
 
-            // DUPLICATE CHECK: Flag duplicate names when adding new items or renaming
+            // DUPLICATE CHECK
             const duplicateItem = appData.dishes.find(d => 
                 d.name.toLowerCase() === name.toLowerCase() && String(d.id) !== String(id)
             );
 
-            if (duplicateItem) {
+            if (duplicateItem && !id) {
                 const overwrite = confirm(
-                    `⚠️ DUPLICATE ITEM DETECTED!\n\nAn item named "${duplicateItem.name}" already exists in category "${duplicateItem.category}".\n\nDo you want to UPDATE the existing item with this new information instead of creating a duplicate?`
+                    `⚠️ DUPLICATE ITEM DETECTED!\n\nAn item named "${duplicateItem.name}" already exists in category "${duplicateItem.category}".\n\nDo you want to UPDATE the existing item instead?`
                 );
-                
-                if (!overwrite) {
-                    return; // User canceled the save
-                }
-                
-                // If user confirms overwrite, set the active ID to the existing duplicate's ID
+                if (!overwrite) return;
                 id = duplicateItem.id;
             }
 
@@ -752,8 +798,24 @@
             }
 
             closeDishModal();
+            await reloadDishes();
+            alert("Item saved successfully!");
+        }
 
-            // Refresh dishes in background without redirecting out of admin
+        async function deleteDishByIndex(index) {
+            const item = appData.dishes[index];
+            if (!item) return;
+
+            if (confirm(`Are you sure you want to delete "${item.name}"?`)) {
+                if (item.id) {
+                    await _supabase.from('menu_items').delete().eq('id', item.id);
+                }
+                appData.dishes.splice(index, 1);
+                renderAdminDishes();
+            }
+        }
+
+        async function reloadDishes() {
             const { data: dishesData } = await _supabase.from('menu_items').select('*');
             if (dishesData) {
                 const dbDishes = dishesData.map(d => ({
@@ -765,7 +827,103 @@
                 appData.dishes = [...dbDishes, ...remainingFallback];
             }
             renderAdminDishes();
-            alert("Item saved successfully!");
+        }
+
+        // ===============================================
+        // BULK CSV UPLOAD & SAMPLE TEMPLATE GENERATOR
+        // ===============================================
+        function downloadSampleCsv() {
+            const sampleHeaders = "name,category,price,description,image,in_stock,tags\n";
+            const sampleRows = 
+                '"Grilled Tilapia","Ghanaian Specialties",199.00,"A Whole Grilled Tilapia Smothered in Spices.","images/tilapia.jpg",true,"Chef Special"\n' +
+                '"Margherita Pizza","Pizza & Burgers",177.00,"Tomatoes, Cheese, Basil.","images/pizza.jpg",true,"Vegetarian"\n' +
+                '"Italian Espresso","Breakfast",27.00,"Freshly brewed Italian espresso.","images/espresso.jpg",true,""';
+
+            const blob = new Blob([sampleHeaders + sampleRows], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", "ankobra_menu_template.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        async function handleBulkCsvUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const csvText = e.target.result;
+                const lines = parseCSVLines(csvText);
+                
+                if (lines.length < 2) {
+                    alert("The CSV file is empty or missing data rows.");
+                    return;
+                }
+
+                const headers = lines[0].map(h => h.trim().toLowerCase());
+                const itemsToInsert = [];
+
+                for (let i = 1; i < lines.length; i++) {
+                    const row = lines[i];
+                    if (!row || row.length < 3) continue;
+
+                    const rowObj = {};
+                    headers.forEach((h, idx) => { rowObj[h] = row[idx] ? row[idx].trim() : ''; });
+
+                    if (!rowObj.name || !rowObj.price) continue;
+
+                    const name = rowObj.name;
+                    const category = rowObj.category || "Main Dishes";
+                    const price = parseFloat(rowObj.price) || 0;
+                    const description = rowObj.description || "";
+                    const image = rowObj.image || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80";
+                    const in_stock = rowObj.in_stock ? rowObj.in_stock.toLowerCase() !== 'false' : true;
+                    const tags = rowObj.tags ? rowObj.tags.split(';').map(t => t.trim()).filter(Boolean) : [];
+
+                    itemsToInsert.push({ name, category, price, description, image, in_stock, tags });
+                }
+
+                if (itemsToInsert.length === 0) {
+                    alert("No valid menu items were found in the CSV file.");
+                    return;
+                }
+
+                if (confirm(`Import ${itemsToInsert.length} items directly to your live menu?`)) {
+                    const { error } = await _supabase.from('menu_items').insert(itemsToInsert);
+                    if (error) {
+                        alert("Database insertion error: " + error.message);
+                    } else {
+                        alert(`Successfully imported ${itemsToInsert.length} menu items!`);
+                        await reloadDishes();
+                    }
+                }
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function parseCSVLines(text) {
+            const p = [[]];
+            let q = false;
+            for (let i = 0; i < text.length; i++) {
+                let c = text[i], next = text[i+1];
+                if (c === '"') {
+                    if (q && next === '"') { p[p.length - 1][p[p.length - 1].length - 1] += '"'; i++; }
+                    else { q = !q; }
+                } else if (c === ',' && !q) {
+                    p[p.length - 1].push('');
+                } else if ((c === '\r' || c === '\n') && !q) {
+                    if (c === '\r' && next === '\n') { i++; }
+                    p.push([]);
+                } else {
+                    if (p[p.length - 1].length === 0) p[p.length - 1].push('');
+                    p[p.length - 1][p[p.length - 1].length - 1] += c;
+                }
+            }
+            return p.filter(row => row.length > 1 || (row.length === 1 && row[0] !== ''));
         }
 
         function renderAdminCategories() {
@@ -782,13 +940,19 @@
         async function addNewCategory() {
             const input = document.getElementById('new-category-input');
             const val = input.value.trim();
-            if (val && !appData.categories.includes(val)) {
-                await _supabase.from('categories').insert([{ name: val }]);
-                appData.categories.push(val);
-                input.value = '';
-                renderAdminCategories();
-                renderCategoryTabs();
+            if (!val) return;
+
+            const existingCat = appData.categories.find(c => c.toLowerCase() === val.toLowerCase());
+            if (existingCat) {
+                alert(`⚠️ Category "${existingCat}" already exists!`);
+                return;
             }
+
+            await _supabase.from('categories').insert([{ name: val }]);
+            appData.categories.push(val);
+            input.value = '';
+            renderAdminCategories();
+            renderCategoryTabs();
         }
 
         async function deleteCategory(cat) {
@@ -805,15 +969,11 @@
             grid.innerHTML = '';
             appData.slides.forEach((slide, index) => {
                 const card = document.createElement('div');
-                card.className = "relative rounded-xl overflow-hidden border border-cream-muted bg-onyx h-45 group flex flex-col justify-end p-2 shadow-sm";
+                card.className = "relative rounded-xl overflow-hidden border border-cream-muted bg-onyx h-40 group flex flex-col justify-end p-2 shadow-sm";
                 card.innerHTML = `
                     <img src="${slide}" class="absolute inset-0 w-full h-full object-cover" onerror="this.src='https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=300&q=80'">
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-                    <div class="relative z-10 flex items-center justify-between gap-1 w-full">
-                        <div class="flex gap-1">
-                            <button onclick="moveSlide(${index}, -1)" ${index === 0 ? 'disabled class="opacity-40 cursor-not-allowed"' : ''} class="bg-white/20 hover:bg-white/40 text-white px-2 py-1 rounded text-xs font-bold backdrop-blur-xs cursor-pointer">▲</button>
-                            <button onclick="moveSlide(${index}, 1)" ${index === appData.slides.length - 1 ? 'disabled class="opacity-40 cursor-not-allowed"' : ''} class="bg-white/20 hover:bg-white/40 text-white px-2 py-1 rounded text-xs font-bold backdrop-blur-xs cursor-pointer">▼</button>
-                        </div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <div class="relative z-10 flex items-center justify-end gap-1 w-full opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onclick="deleteSlide(${index})" class="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded text-xs font-bold shadow-md cursor-pointer">Remove</button>
                     </div>
                 `;
@@ -837,18 +997,6 @@
                 fileInput.value = '';
                 renderAdminSlides();
             }
-        }
-
-        async function moveSlide(index, direction) {
-            const newIndex = index + direction;
-            if (newIndex < 0 || newIndex >= appData.slides.length) return;
-
-            const temp = appData.slides[index];
-            appData.slides[index] = appData.slides[newIndex];
-            appData.slides[newIndex] = temp;
-
-            await syncSlidesToSupabase();
-            renderAdminSlides();
         }
 
         async function syncSlidesToSupabase() {
